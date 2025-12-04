@@ -1,25 +1,48 @@
 name: Daily Birthday Check
+
 on:
+  # 1. 自动定时执行：每天UTC时间2:00（北京时间10:00）
   schedule:
-    - cron: '0 2 * * *' # 每天 UTC 时间 2:00 运行，对应北京时间 10:00
+    - cron: '0 2 * * *'
+  
+  # 2. 手动触发执行：无需输入参数
   workflow_dispatch:
+    # 移除了inputs部分，现在点击按钮即可直接运行
+
 jobs:
   check-and-notify:
     runs-on: ubuntu-latest
+    env:
+      # 设置时区为亚洲/上海，确保脚本中的日期计算基于北京时间
+      TZ: 'Asia/Shanghai'
+    
     steps:
       - name: 检出代码
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
       - name: 设置 Node.js 环境
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
+
       - name: 安装依赖
         run: npm ci
+
       - name: 执行生日检查
         env:
-          WEWORK_WEBHOOK_URL: ${{ secrets.WEWORK_WEBHOOK_URL }} # 关键修改：使用Webhook URL
-        run: node scripts/index.js
+          WEWORK_WEBHOOK_URL: ${{ secrets.WEWORK_WEBHOOK_URL }}
+        run: |
+          echo "开始执行生日检查..."
+          echo "当前时间(UTC): $(date -u)"
+          echo "当前时间(本地): $(date)"
+          node scripts/index.js
+
       - name: 记录执行完成
         if: always()
-        run: echo “生日检查任务执行完毕。日期: $(date)”
+        run: |
+          echo "生日检查任务执行完成"
+          echo "执行时间: $(date)"
+          echo "触发方式: ${{ github.event_name }}"
