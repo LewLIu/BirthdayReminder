@@ -1,24 +1,24 @@
 {
   "globalSettings": {
-    "defaultAdvanceNoticeDays": [0, 3, 7] // 全局默认：当天、提前3天、提前7天提醒
+    "defaultAdvanceNoticeDays": [0, 3] // 全局默认：当天、提前3天提醒
   },
   "people": [
     {
       "name": "张三",
       "birthdayType": "solar",
-      "birthday": "12-07",
+      "birthday": "12-04",
       "advanceNoticeDays": [0, 1, 3] // 个人设置：覆盖全局默认值
     },
     {
       "name": "李四",
       "birthdayType": "lunar",
-      "birthday": "十一-初一",
+      "birthday": "十月-廿二",
       "advanceNoticeDays": [0, 7] // 个人设置：覆盖全局默认值
     },
     {
       "name": "王五",
       "birthdayType": "solar",
-      "birthday": "12-25"
+      "birthday": "12-07"
       // 未设置 advanceNoticeDays，将自动使用全局默认值 [0, 3, 7]
     }
   ]
