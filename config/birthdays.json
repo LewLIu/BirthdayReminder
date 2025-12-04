@@ -1,0 +1,19 @@
+{
+  "people": [
+    {
+      "name": "张三",
+      "birthdayType": "solar", // "solar" 表示公历，"lunar" 表示农历
+      "birthday": "03-15"      // 公历生日格式：MM-DD
+    },
+    {
+      "name": "李四",
+      "birthdayType": "lunar",
+      "birthday": "01-01"      // 农历生日格式：MM-DD（正月初一）
+    },
+    {
+      "name": "王五",
+      "birthdayType": "solar",
+      "birthday": "12-25"
+    }
+  ]
+}
