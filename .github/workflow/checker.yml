@@ -1,0 +1,25 @@
+name: Daily Birthday
+on:
+  schedule:
+    - cron: '0 2 * * *' # 每天 UTC 时间 2:00 运行，对应北京时间 10:00
+  workflow_dispatch:
+jobs:
+  check-and-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+      - name: 设置 Node.js 环境
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: 安装依赖
+        run: npm ci
+      - name: 执行生日检查
+        env:
+          WEWORK_WEBHOOK_URL: ${{ secrets.WEWORK_WEBHOOK_URL }} # 关键修改：使用Webhook URL
+        run: node scripts/index.js
+      - name: 记录执行完成
+        if: always()
+        run: echo “生日检查任务执行完毕。日期: $(date)”
