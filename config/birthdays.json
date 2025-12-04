@@ -1,19 +1,25 @@
 {
+  "globalSettings": {
+    "defaultAdvanceNoticeDays": [0, 3, 7] // 全局默认：当天、提前3天、提前7天提醒
+  },
   "people": [
     {
       "name": "张三",
-      "birthdayType": "solar", // "solar" 表示公历，"lunar" 表示农历
-      "birthday": "03-15"      // 公历生日格式：MM-DD
+      "birthdayType": "solar",
+      "birthday": "12-07",
+      "advanceNoticeDays": [0, 1, 3] // 个人设置：覆盖全局默认值
     },
     {
       "name": "李四",
       "birthdayType": "lunar",
-      "birthday": "01-01"      // 农历生日格式：MM-DD（正月初一）
+      "birthday": "十一-初一",
+      "advanceNoticeDays": [0, 7] // 个人设置：覆盖全局默认值
     },
     {
       "name": "王五",
       "birthdayType": "solar",
       "birthday": "12-25"
+      // 未设置 advanceNoticeDays，将自动使用全局默认值 [0, 3, 7]
     }
   ]
 }
