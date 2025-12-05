@@ -87,7 +87,6 @@ function checkBirthdayOnDate(targetDate, peopleList) {
                 }
             } else if (person.birthdayType === 'lunar') {
                 let lunarMonth, lunarDay;
-                let lunarYear = targetYear;
 
                 if (isNaN(birthMonth)) {
                     lunarMonth = chineseLunarToNumber(birthMonth);
@@ -101,8 +100,10 @@ function checkBirthdayOnDate(targetDate, peopleList) {
                     lunarDay = parseInt(birthDay);
                 }
 
-                const lunarDate = Lunar.fromYmd(lunarYear, lunarMonth, lunarDay);
+                // 核心修复：将目标年份下的农历生日转换为公历日期，再进行比较
+                const lunarDate = Lunar.fromYmd(targetYear, lunarMonth, lunarDay);
                 const solarDate = lunarDate.getSolar();
+                // 此处必须使用转换后的公历月份和日期与目标日期比较
                 isBirthday = (targetMonth === solarDate.getMonth() + 1 && targetDay === solarDate.getDay());
 
                 if (isBirthday) {
@@ -149,7 +150,10 @@ async function main() {
             finalAdvanceDays: person.advanceNoticeDays || globalDefaultDays
         }));
 
-        const allReminders = [];
+        // 分别存储当天提醒和提前提醒
+        const todayReminders = [];
+        const advanceReminders = [];
+
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         for (const person of peopleList) {
@@ -161,37 +165,70 @@ async function main() {
 
                 matches.forEach(match => {
                     let advanceText;
+                    let prefixEmoji = '🎉';
                     if (advanceDay === 0) {
-                        advanceText = '[今天]';
+                        advanceText = '今天';
+                        prefixEmoji = '🎂';
                     } else {
-                        advanceText = `[还有${advanceDay}天]`;
+                        advanceText = `还有${advanceDay}天`;
+                        prefixEmoji = '⏰';
                     }
 
                     const solar = match.solarDate;
                     const dateStr = `${solar.getYear()}-${solar.getMonth().toString().padStart(2, '0')}-${solar.getDay().toString().padStart(2, '0')}`;
                     
-                    allReminders.push({
+                    const reminderItem = {
                         name: match.name,
                         advanceText: advanceText,
                         type: match.type,
                         zodiac: match.zodiac,
                         targetDate: new Date(targetDate),
                         dateStr: dateStr,
-                        advanceDay: advanceDay
-                    });
+                        advanceDay: advanceDay,
+                        prefixEmoji: prefixEmoji
+                    };
+
+                    // 根据是否为当天提醒，放入不同列表
+                    if (advanceDay === 0) {
+                        todayReminders.push(reminderItem);
+                    } else {
+                        advanceReminders.push(reminderItem);
+                    }
                 });
             }
         }
 
-        if (allReminders.length > 0) {
-            allReminders.sort((a, b) => a.targetDate - b.targetDate);
+        // 合并列表：当天提醒在前，提前提醒在后
+        const allReminders = [...todayReminders, ...advanceReminders];
 
-            let message = '生日提醒\n\n';
-            allReminders.forEach(rem => {
-                let zodiacInfo = (rem.zodiac) ? ` 星座：${rem.zodiac}` : '';
-                message += `${rem.name} ${rem.advanceText} (${rem.dateStr}) 过${rem.type}生日${zodiacInfo}\n`;
-            });
-            message += '\n记得送上祝福哦！';
+        if (allReminders.length > 0) {
+            let message = '🎊 生日提醒 🎊\n\n';
+            
+            // 如果有当天生日，先输出
+            if (todayReminders.length > 0) {
+                message += '🎁 今天过生日：\n';
+                todayReminders.forEach(rem => {
+                    let typeEmoji = rem.type === '公历' ? '📅' : '🌙';
+                    let zodiacInfo = rem.zodiac ? ` | ${rem.zodiac}` : '';
+                    message += `${rem.prefixEmoji} ${typeEmoji} ${rem.name} (${rem.dateStr}) ${rem.type}${zodiacInfo}\n`;
+                });
+                message += '\n';
+            }
+
+            // 如果有提前提醒，后输出
+            if (advanceReminders.length > 0) {
+                message += '📌 即将过生日：\n';
+                // 提前提醒可以按日期排序
+                advanceReminders.sort((a, b) => a.targetDate - b.targetDate);
+                advanceReminders.forEach(rem => {
+                    let typeEmoji = rem.type === '公历' ? '📅' : '🌙';
+                    let zodiacInfo = rem.zodiac ? ` | ${rem.zodiac}` : '';
+                    message += `${rem.prefixEmoji} ${typeEmoji} ${rem.name} ${rem.advanceText} (${rem.dateStr}) ${rem.type}${zodiacInfo}\n`;
+                });
+                message += '\n';
+            }
+
+            message += '💝 记得送上祝福哦！';
 
             console.log('发现生日提醒，准备发送消息...');
             const result = await sendWecomMessage(message);
