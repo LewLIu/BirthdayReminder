@@ -12,13 +12,18 @@
     {
       "name": "李四",
       "birthdayType": "lunar",
-      "birthday": "十月-廿二",
+      "birthday": "十月-十六",
       "advanceNoticeDays": [0, 7] 
     },
     {
       "name": "王五",
       "birthdayType": "solar",
-      "birthday": "12-07"
+      "birthday": "12-05"
+    },
+    {
+      "name": "哈哈",
+      "birthdayType": "lunar",
+      "birthday": "十月-十九"
     }
   ]
 }
