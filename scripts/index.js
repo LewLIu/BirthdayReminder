@@ -14,6 +14,8 @@ function chineseLunarToNumber(chineseStr) {
         '正': 1, '一': 1, '二': 2, '三': 3, '四': 4,
         '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
         '十': 10, '十一': 11, '十二': 12,
+        '冬': 11,
+        '腊': 12,
         '廿': 20, '卅': 30
     };
     const dayMap = {
@@ -66,12 +68,13 @@ function checkBirthdayOnDate(targetDate, peopleList) {
     peopleList.forEach(person => {
         let isBirthday = false;
         let actualSolarDate = null;
-        let zodiac = '未知';
+        let zodiac = null; // 修改：默认不提供星座信息
 
         try {
             const [birthMonth, birthDay] = person.birthday.split('-').map(n => n.trim());
 
             if (person.birthdayType === 'solar') {
+                // 公历生日：直接比较并提供星座
                 const solarMonth = parseInt(birthMonth);
                 const solarDay = parseInt(birthDay);
                 if (isNaN(solarMonth) || isNaN(solarDay)) {
@@ -81,10 +84,18 @@ function checkBirthdayOnDate(targetDate, peopleList) {
                 isBirthday = (targetMonth === solarMonth && targetDay === solarDay);
                 if (isBirthday) {
                     actualSolarDate = Solar.fromYmd(targetYear, solarMonth, solarDay);
+                    // 公历生日明确，计算星座
                     zodiac = getZodiacSign(actualSolarDate.getMonth(), actualSolarDate.getDay());
                 }
             } else if (person.birthdayType === 'lunar') {
+                // 农历生日：转换为公历后再比较
                 let lunarMonth, lunarDay;
+                let lunarYear = targetYear; // 默认使用目标年份查找
+
+                // 检查是否在配置中指定了农历年份（如“癸卯-十-廿二”）
+                // 注意：当前配置文件格式仅支持“月-日”，此部分为预留逻辑。
+                // 若需支持带年份的农历，需调整birthday字段格式或添加新字段。
+                // 当前逻辑按无年份处理。
 
                 if (isNaN(birthMonth)) {
                     lunarMonth = chineseLunarToNumber(birthMonth);
@@ -98,13 +109,15 @@ function checkBirthdayOnDate(targetDate, peopleList) {
                     lunarDay = parseInt(birthDay);
                 }
 
-                const lunarDate = Lunar.fromYmd(targetYear, lunarMonth, lunarDay);
+                const lunarDate = Lunar.fromYmd(lunarYear, lunarMonth, lunarDay);
                 const solarDate = lunarDate.getSolar();
                 isBirthday = (targetMonth === solarDate.getMonth() + 1 && targetDay === solarDate.getDate());
 
                 if (isBirthday) {
                     actualSolarDate = solarDate;
-                    zodiac = getZodiacSign(actualSolarDate.getMonth(), actualSolarDate.getDay());
+                    // 农历生日默认不提供星座。
+                    // 如果未来配置支持指定农历年份（确定公历日期），则可在此计算zodiac。
+                    // zodiac = getZodiacSign(actualSolarDate.getMonth(), actualSolarDate.getDay());
                 }
             }
 
@@ -112,7 +125,7 @@ function checkBirthdayOnDate(targetDate, peopleList) {
                 result.push({
                     name: person.name,
                     type: person.birthdayType === 'solar' ? '公历' : '农历',
-                    zodiac: zodiac,
+                    zodiac: zodiac, // 公历生日有值，农历生日为null
                     solarDate: actualSolarDate
                 });
             }
@@ -124,7 +137,7 @@ function checkBirthdayOnDate(targetDate, peopleList) {
 }
 
 async function main() {
-    console.log('🎂 开始执行生日检查...');
+    console.log('开始执行生日检查...');
     const now = new Date();
     console.log('当前系统时间:', now.toLocaleString('zh-CN'));
 
@@ -138,7 +151,7 @@ async function main() {
         const peopleRawList = configData.people || [];
 
         if (peopleRawList.length === 0) {
-            console.log('⚠️ 配置文件中未找到人员列表。');
+            console.log('配置文件中未找到人员列表。');
             return;
         }
 
@@ -172,7 +185,7 @@ async function main() {
                         name: match.name,
                         advanceText,
                         type: match.type,
-                        zodiac: match.zodiac,
+                        zodiac: match.zodiac, // 可能为null
                         targetDate: new Date(targetDate),
                         dateStr
                     });
@@ -183,22 +196,27 @@ async function main() {
         if (allReminders.length > 0) {
             allReminders.sort((a, b) => a.targetDate - b.targetDate);
 
-            let message = '🎂 **生日提醒**\n\n';
+            let message = '**生日提醒**\n\n';
             allReminders.forEach(rem => {
-                message += `👉 **${rem.name}** ${rem.advanceText}（${rem.dateStr}）过${rem.type}生日\n`;
-                message += `   星座：${rem.zodiac}\n\n`;
+                // 公历生日显示星座，农历生日不显示
+                let zodiacInfo = (rem.zodiac) ? `星座：${rem.zodiac}` : '';
+                message += `**${rem.name}** ${rem.advanceText}（${rem.dateStr}）过${rem.type}生日\n`;
+                if (zodiacInfo) {
+                    message += `${zodiacInfo}\n`;
+                }
+                message += '\n'; // 统一空行
             });
             message += '记得送上祝福哦！';
 
             console.log('发现生日提醒，准备发送消息...');
             const result = await sendWecomMessage(message);
-            console.log('✅ 企业微信消息发送结果:', result);
+            console.log('企业微信消息发送结果:', result);
         } else {
             console.log('今天没有需要发送的生日提醒。');
         }
 
     } catch (error) {
-        console.error('❌ 执行过程中发生错误:', error);
+        console.error('执行过程中发生错误:', error);
         process.exit(1);
     }
 }
