@@ -62,7 +62,7 @@ function chineseLunarToNumber(chineseStr) {
 function checkBirthdayOnDate(targetDate, peopleList) {
     const result = [];
     const targetYear = targetDate.getFullYear();
-    const targetMonth = targetDate.getMonth() + 1;
+    const targetMonth = targetDate.getMonth() + 1; // JavaScript月份0-11，转为1-12
     const targetDay = targetDate.getDate();
 
     peopleList.forEach(person => {
@@ -100,14 +100,17 @@ function checkBirthdayOnDate(targetDate, peopleList) {
                     lunarDay = parseInt(birthDay);
                 }
 
-                // 核心修复：将目标年份下的农历生日转换为公历日期，再进行比较
+                // 核心修正：使用目标检查日期对应的年份，将农历生日转换为公历日期
                 const lunarDate = Lunar.fromYmd(targetYear, lunarMonth, lunarDay);
                 const solarDate = lunarDate.getSolar();
-                // 此处必须使用转换后的公历月份和日期与目标日期比较
-                isBirthday = (targetMonth === solarDate.getMonth() + 1 && targetDay === solarDate.getDay());
+
+                // 关键比较：将转换得到的公历日期，与目标检查日期进行比较
+                // 注意：Solar.getMonth()返回1-12，getDay()返回1-31
+                isBirthday = (targetMonth === solarDate.getMonth() && targetDay === solarDate.getDay());
 
                 if (isBirthday) {
                     actualSolarDate = solarDate;
+                    // 农历生日不提供星座信息
                 }
             }
 
