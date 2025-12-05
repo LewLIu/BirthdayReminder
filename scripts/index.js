@@ -3,17 +3,18 @@ const path = require('path');
 const { Lunar, Solar } = require('lunar-javascript');
 const { sendWecomMessage } = require('./wecom-notifier.js');
 
+// 获取星座
 function getZodiacSign(month, day) {
     const dates = [20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 22, 22];
     const signs = ["摩羯座", "水瓶座", "双鱼座", "白羊座", "金牛座", "双子座", "巨蟹座", "狮子座", "处女座", "天秤座", "天蝎座", "射手座", "摩羯座"];
     return (day < dates[month - 1]) ? signs[month - 1] : signs[month];
 }
 
+// 农历汉字转数字（增强版，支持“十月”、“十六日”等带单位格式）
 function chineseLunarToNumber(chineseStr) {
     if (!chineseStr) return 0;
     
-    // 【修复点1】移除可能存在的单位字符（月、日、号），只保留数字相关的汉字
-    // 这样 "十月" 会变成 "十"，"十六日" 会变成 "十六"
+    // 移除可能存在的单位字符（月、日、号），只保留数字相关的汉字
     const pureStr = chineseStr.replace(/[月日号]/g, '').trim();
 
     const digitMap = {
@@ -25,7 +26,6 @@ function chineseLunarToNumber(chineseStr) {
         '廿': 20, '卅': 30
     };
     
-    // 常用日期直接映射（包含初一到三十）
     const dayMap = {
         '初一': 1, '初二': 2, '初三': 3, '初四': 4, '初五': 5,
         '初六': 6, '初七': 7, '初八': 8, '初九': 9, '初十': 10,
@@ -35,108 +35,93 @@ function chineseLunarToNumber(chineseStr) {
         '廿六': 26, '廿七': 27, '廿八': 28, '廿九': 29, '三十': 30
     };
 
-    // 1. 尝试直接匹配常用日期表
     if (dayMap[pureStr] !== undefined) {
         return dayMap[pureStr];
     }
-
-    // 2. 尝试直接匹配数字表（如 "十" -> 10, "腊" -> 12）
     if (digitMap[pureStr] !== undefined) {
         return digitMap[pureStr];
     }
 
     let num = 0;
-    
-    // 3. 处理特殊的 "二十" (虽然dayMap已包含，但作为防御)
     if (pureStr === '二十') {
         return 20;
     }
-
-    // 4. 处理 "廿X" 格式
     if (pureStr.startsWith('廿')) {
         const secondChar = pureStr.substring(1);
         num = 20 + (digitMap[secondChar] || 0);
         return num;
     }
-
-    // 5. 处理 "十X" 或 "X十X" 格式
     if (pureStr.includes('十')) {
         const parts = pureStr.split('十');
         if (parts.length === 2) {
             const [tenPart, onePart] = parts;
-            
-            // 计算十位: 如果 '十' 前面为空，则默认为 1 (即10)，否则查找映射
             let tenVal = 1;
-            if (tenPart !== '') {
-                tenVal = digitMap[tenPart] || 0;
-            }
-
-            // 计算个位
+            if (tenPart !== '') tenVal = digitMap[tenPart] || 0;
             let oneVal = 0;
-            if (onePart !== '') {
-                oneVal = digitMap[onePart] || 0;
-            }
-
+            if (onePart !== '') oneVal = digitMap[onePart] || 0;
             num = tenVal * 10 + oneVal;
         }
     } else {
-        // 最后的尝试
         num = digitMap[pureStr] || 0;
     }
 
-    // 6. 如果汉字解析失败，尝试直接解析阿拉伯数字
     if (num === 0) {
         num = parseInt(pureStr);
     }
-
     return isNaN(num) ? 1 : num;
 }
 
 function checkBirthdayOnDate(targetDate, peopleList) {
     const result = [];
     const targetYear = targetDate.getFullYear();
-    const targetMonth = targetDate.getMonth() + 1; // JavaScript月份0-11，转为1-12
+    const targetMonth = targetDate.getMonth() + 1; 
     const targetDay = targetDate.getDate();
 
     peopleList.forEach(person => {
         let isBirthday = false;
         let actualSolarDate = null;
         let zodiac = null;
+        let displayDateStr = ''; // 新增：用于存储最终展示的日期字符串
 
         try {
             const [birthMonthStr, birthDayStr] = person.birthday.split('-').map(n => n.trim());
 
             if (person.birthdayType === 'solar') {
+                // --- 公历处理逻辑 ---
                 const solarMonth = parseInt(birthMonthStr);
                 const solarDay = parseInt(birthDayStr);
-                if (isNaN(solarMonth) || isNaN(solarDay)) {
-                    console.error(`人员 ${person.name} 的公历生日格式错误: ${person.birthday}`);
-                    return;
-                }
+                
+                if (isNaN(solarMonth) || isNaN(solarDay)) return;
+                
                 isBirthday = (targetMonth === solarMonth && targetDay === solarDay);
+                
                 if (isBirthday) {
                     actualSolarDate = Solar.fromYmd(targetYear, solarMonth, solarDay);
+                    // 公历计算星座
                     zodiac = getZodiacSign(actualSolarDate.getMonth(), actualSolarDate.getDay());
+                    // 公历显示格式：YYYY-MM-DD
+                    displayDateStr = actualSolarDate.toYmd();
                 }
+
             } else if (person.birthdayType === 'lunar') {
-                let lunarMonth, lunarDay;
+                // --- 农历处理逻辑 ---
+                const lunarMonth = chineseLunarToNumber(birthMonthStr);
+                const lunarDay = chineseLunarToNumber(birthDayStr);
 
-                // 统一使用增强后的转换函数，它现在能处理 "10", "十", "十月" 等多种情况
-                lunarMonth = chineseLunarToNumber(birthMonthStr);
-                lunarDay = chineseLunarToNumber(birthDayStr);
-
-                // 核心修正：使用目标检查日期对应的年份，将农历生日转换为公历日期
-                // 注意：这里默认不处理闰月（即如果今年农历有闰十月，默认只提醒第一个十月，除非使用更复杂的配置）
+                // 使用目标年份，构建农历对象并转公历
                 const lunarDate = Lunar.fromYmd(targetYear, lunarMonth, lunarDay);
                 const solarDate = lunarDate.getSolar();
 
-                // 关键比较：将转换得到的公历日期，与目标检查日期进行比较
                 isBirthday = (targetMonth === solarDate.getMonth() && targetDay === solarDate.getDay());
 
                 if (isBirthday) {
-                    actualSolarDate = solarDate;
-                    // 可以在这里计算该公历对应的星座
-                    zodiac = getZodiacSign(solarDate.getMonth(), solarDate.getDay());
+                    actualSolarDate = solarDate; // 保留公历对象用于排序
+                    
+                    // 【修正1】农历生日不计算星座
+                    zodiac = null; 
+                    
+                    // 【修正2】农历显示格式：中文农历（如：十月十六）
+                    displayDateStr = lunarDate.getMonthInChinese() + "月" + lunarDate.getDayInChinese();
                 }
             }
 
@@ -145,12 +130,12 @@ function checkBirthdayOnDate(targetDate, peopleList) {
                     name: person.name,
                     type: person.birthdayType === 'solar' ? '公历' : '农历',
                     zodiac: zodiac,
-                    solarDate: actualSolarDate
+                    solarDate: actualSolarDate,
+                    displayDate: displayDateStr // 将格式化好的日期传出去
                 });
             }
         } catch (error) {
-            // 某些年份可能没有农历30日，Lunar.fromYmd可能会报错，捕获以防崩溃
-            // console.error(`处理人员 ${person.name} 的生日时出错:`, error.message);
+            // 忽略农历闰月/无效日期导致的转换错误
         }
     });
     return result;
@@ -180,14 +165,12 @@ async function main() {
             finalAdvanceDays: person.advanceNoticeDays || globalDefaultDays
         }));
 
-        // 分别存储当天提醒和提前提醒
         const todayReminders = [];
         const advanceReminders = [];
 
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         for (const person of peopleList) {
-            // 使用 Set 去重，防止配置了重复的提前天数导致重复提醒
             const distinctAdvanceDays = [...new Set(person.finalAdvanceDays)];
             
             for (const advanceDay of distinctAdvanceDays) {
@@ -207,15 +190,15 @@ async function main() {
                         prefixEmoji = '⏰';
                     }
 
-                    const solar = match.solarDate;
-                    const dateStr = `${solar.getYear()}-${solar.getMonth().toString().padStart(2, '0')}-${solar.getDay().toString().padStart(2, '0')}`;
+                    // 使用 checkBirthdayOnDate 中生成的格式化日期
+                    const dateStr = match.displayDate;
                     
                     const reminderItem = {
                         name: match.name,
                         advanceText: advanceText,
                         type: match.type,
                         zodiac: match.zodiac,
-                        targetDate: new Date(targetDate), // 用于排序
+                        targetDate: new Date(targetDate),
                         dateStr: dateStr,
                         advanceDay: advanceDay,
                         prefixEmoji: prefixEmoji
@@ -239,6 +222,7 @@ async function main() {
                 message += '🎁 今天过生日：\n';
                 todayReminders.forEach(rem => {
                     let typeEmoji = rem.type === '公历' ? '📅' : '🌙';
+                    // 如果有星座才显示
                     let zodiacInfo = rem.zodiac ? ` | ${rem.zodiac}` : '';
                     message += `${rem.prefixEmoji} ${typeEmoji} ${rem.name} (${rem.dateStr}) ${rem.type}${zodiacInfo}\n`;
                 });
@@ -247,7 +231,6 @@ async function main() {
 
             if (advanceReminders.length > 0) {
                 message += '📌 即将过生日：\n';
-                // 提前提醒按日期排序
                 advanceReminders.sort((a, b) => a.targetDate - b.targetDate);
                 advanceReminders.forEach(rem => {
                     let typeEmoji = rem.type === '公历' ? '📅' : '🌙';
