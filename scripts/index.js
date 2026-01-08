@@ -73,55 +73,54 @@ function chineseLunarToNumber(chineseStr) {
 
 function checkBirthdayOnDate(targetDate, peopleList) {
     const result = [];
+    // 获取目标日期的年份、月份、日期
     const targetYear = targetDate.getFullYear();
-    const targetMonth = targetDate.getMonth() + 1; 
+    const targetMonth = targetDate.getMonth() + 1;
     const targetDay = targetDate.getDate();
+
+    // 将目标公历日期直接转换为农历对象（这是修复的核心）
+    // 比如：2026-01-08 会被正确转换为 2025年冬月二十
+    const targetSolarObj = Solar.fromYmd(targetYear, targetMonth, targetDay);
+    const targetLunarObj = targetSolarObj.getLunar();
 
     peopleList.forEach(person => {
         let isBirthday = false;
         let actualSolarDate = null;
         let zodiac = null;
-        let displayDateStr = ''; // 新增：用于存储最终展示的日期字符串
+        let displayDateStr = '';
 
         try {
-            const [birthMonthStr, birthDayStr] = person.birthday.split('-').map(n => n.trim());
+            const [birthMonthStr, birthDayStr] = person.birthday.split(/[-/]/).map(n => n.trim());
 
             if (person.birthdayType === 'solar') {
-                // --- 公历处理逻辑 ---
+                // --- 公历处理逻辑 (保持不变) ---
                 const solarMonth = parseInt(birthMonthStr);
                 const solarDay = parseInt(birthDayStr);
-                
+
                 if (isNaN(solarMonth) || isNaN(solarDay)) return;
-                
+
                 isBirthday = (targetMonth === solarMonth && targetDay === solarDay);
-                
+
                 if (isBirthday) {
-                    actualSolarDate = Solar.fromYmd(targetYear, solarMonth, solarDay);
-                    // 公历计算星座
+                    actualSolarDate = targetSolarObj;
                     zodiac = getZodiacSign(actualSolarDate.getMonth(), actualSolarDate.getDay());
-                    // 公历显示格式：YYYY-MM-DD
                     displayDateStr = actualSolarDate.toYmd();
                 }
-
             } else if (person.birthdayType === 'lunar') {
-                // --- 农历处理逻辑 ---
-                const lunarMonth = chineseLunarToNumber(birthMonthStr);
-                const lunarDay = chineseLunarToNumber(birthDayStr);
+                // --- 农历处理逻辑 (已修复) ---
+                const configLunarMonth = chineseLunarToNumber(birthMonthStr);
+                const configLunarDay = chineseLunarToNumber(birthDayStr);
 
-                // 使用目标年份，构建农历对象并转公历
-                const lunarDate = Lunar.fromYmd(targetYear, lunarMonth, lunarDay);
-                const solarDate = lunarDate.getSolar();
-
-                isBirthday = (targetMonth === solarDate.getMonth() && targetDay === solarDate.getDay());
-
-                if (isBirthday) {
-                    actualSolarDate = solarDate; // 保留公历对象用于排序
-                    
-                    // 【修正1】农历生日不计算星座
+                // 直接比较：今天的农历月份和日期，是否等于配置的月份和日期
+                // getMonth() 返回 1-12 (数字), getDay() 返回 1-30 (数字)
+                // 这种方式完美避开了年份错位的问题
+                if (targetLunarObj.getMonth() === configLunarMonth && 
+                    targetLunarObj.getDay() === configLunarDay) {
+ 
+                    isBirthday = true;
+                    actualSolarDate = targetSolarObj; // 既然匹配了，那今天就是生日对应的公历
                     zodiac = null; 
-                    
-                    // 【修正2】农历显示格式：中文农历（如：十月十六）
-                    displayDateStr = lunarDate.getMonthInChinese() + "月" + lunarDate.getDayInChinese();
+                    displayDateStr = targetLunarObj.getMonthInChinese() + "月" + targetLunarObj.getDayInChinese();
                 }
             }
 
@@ -131,11 +130,11 @@ function checkBirthdayOnDate(targetDate, peopleList) {
                     type: person.birthdayType === 'solar' ? '公历' : '农历',
                     zodiac: zodiac,
                     solarDate: actualSolarDate,
-                    displayDate: displayDateStr // 将格式化好的日期传出去
+                    displayDate: displayDateStr
                 });
             }
         } catch (error) {
-            // 忽略农历闰月/无效日期导致的转换错误
+            console.error(`处理人员 ${person.name} 时出错:`, error);
         }
     });
     return result;
